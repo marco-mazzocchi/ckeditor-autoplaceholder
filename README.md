@@ -49,3 +49,5 @@ Like in the example, you can separate key values with dot to provide a guided su
 In the example if you type inside the placeholder "anim" it will suggest just "animals". Then when you choose the "animals" option it will suggest "dogs, cats, and birds" and so on.
 
 You can specify an optional the optional configuration property "defaultText" that will substitute the default value that will appear inside the widget.
+
+[Add Placeholder plugin to CkEditor from the addon page](https://ckeditor.com/cke4/addon/autoplaceholder)
