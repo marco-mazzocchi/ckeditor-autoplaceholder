@@ -232,6 +232,14 @@
         }
     }
 
+	function selectElementContents(el) {
+	    var range = document.createRange();
+	    range.selectNodeContents(el);
+	    var selection = window.getSelection();
+	    selection.removeAllRanges();
+	    selection.addRange(range);
+	}
+
     // register plugin
     CKEDITOR.plugins.add( 'autoplaceholder', {
         requires: 'widget',
@@ -268,12 +276,16 @@
                     return element.name === 'span' && element.hasClass( 'autoplaceholder' );
                 },
                 init: function() {
-                    this.on('ready', function() {
+                    this.on('ready', function(e) {
 
-                        $('.autoplaceholder-token')
+                        var $autoplaceholderToken = $('.autoplaceholder-token');
+
+                        $autoplaceholderToken
                             .on('focus', function() {
                                 // on focus save the current text in data
                                 var $this = $(this);
+                                // select the widget text
+                                selectElementContents(this);
                                 $this.data('before', $this.text());
                                 return $this;
                             }).on('keydown paste', _.debounce(
