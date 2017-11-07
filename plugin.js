@@ -10,7 +10,7 @@
      * @return {Object} - the object representing the valid token list by key
      *
      */
-    function checkForValidTokens(inputValue, tokenList) {
+    function getValidTokens(inputValue, tokenList) {
 
         // explode input value in different fragments by the dot separator
         inputSplitted = inputValue.split('.');
@@ -108,7 +108,8 @@
                'class': tokenSuggestionClass,
                'css': {
                    'top': $element.outerHeight()
-               }
+               },
+               'contenteditable': false
            });
            $element.append($suggestionBox);
         }
@@ -135,6 +136,8 @@
                         $element.data('source', s.tokenValue);
                     }
 
+                    $suggestionBox.remove();
+
                     // set suggested text as element text a move cursor to the end of it
                     $element.text(suggestedText);
                     setCursorToEnd($element.get(0));
@@ -145,6 +148,7 @@
                     }
                 }
             });
+
             $suggestionBox.append($suggestion);
         });
 
@@ -208,6 +212,18 @@
             }
         }
 
+    }
+
+    /**
+     * Check if the input (a contenteditable element) has valid suggested tokens
+     *
+     * @param
+     */
+    function checkForValidTokens($input, tokenList) {
+        var inputValue = $input.text();
+        var tokens = getValidTokens(inputValue, tokenList);
+        if(inputValue === '') $input.html('&nbsp;');
+        showSuggestions($input, tokens);
     }
 
     /**
@@ -282,13 +298,19 @@
 
                         $autoplaceholderToken
                             .on('focus', function() {
-                                // on focus save the current text in data
                                 var $this = $(this);
                                 // select the widget text
                                 selectElementContents(this);
+                                // on focus save the current text in data
                                 $this.data('before', $this.text());
                                 return $this;
-                            }).on('keydown paste', _.debounce(
+                            })
+                            .on('blur', function() {
+                                var $this = $(this);
+                                $this.find('.token-suggestions').remove();
+                                return $this;
+                            })
+                            .on('keydown paste', _.debounce(
                                 function(e) {
                                     // ignore keypress used by suggestion list navigation
                                     var code = e.keyCode || e.which;
@@ -303,7 +325,7 @@
                                     var $this = $(this);
 
                                     // remove old suggestion list
-                                    $this.find('.token-suggestions').remove();
+                                    // $this.find('.token-suggestions').remove();
 
                                     var inputValue = $this.text();
                                     // if content is changed
@@ -313,11 +335,12 @@
                                         $this.removeClass('completed');
                                         // if user insert almost two chars or an empty string check for suggestion and show
                                         if(inputValue.length > 1 || inputValue === '') {
-                                            var tokens = checkForValidTokens(inputValue, tokenList);
-                                            showSuggestions($this, tokens);
+                                            checkForValidTokens($this, tokenList);
                                         }
                                     }
+
                                     return $this;
+
                                 }, 800)
                             );
 
