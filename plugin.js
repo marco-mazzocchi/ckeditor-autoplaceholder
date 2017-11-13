@@ -1,6 +1,8 @@
 ( function() {
 
-    CKEDITOR.dtd.$editable['span'] = 1;
+    CKEDITOR.dtd.$editable.span = 1;
+
+    var tokenSuggestionClass = 'token-suggestions';
 
     /**
      * Given an input string return all valid tokens in tokenList
@@ -16,7 +18,7 @@
         inputSplitted = inputValue.split('.');
 
         // reduce all available tokens accumulating matching keys
-        return _.reduce(tokenList, function(tokens, tokenValue, tokenKey) {
+        return _.reduce(tokenList, function(validTokens, tokenValue, tokenKey) {
 
             var tokenSplitted = tokenKey.split('.');
             var valid = true;
@@ -51,18 +53,42 @@
 
             // if valid add to accumulator
             if(valid) {
-                tokens[lastTokenFragment] = {
+                validTokens[lastTokenFragment] = {
                     tokenKey: tokenKey,
+                    data: tokenValue,
                     composedToken: composedToken,
-                    lastTokenFragment: lastTokenFragment,
-                    source: tokenValue
+                    lastTokenFragment: lastTokenFragment
                 };
             }
 
-            return tokens;
+            return validTokens;
 
         }, {});
 
+    }
+
+    /**
+     * Change element attributes and fire event when token is setMatchedToken
+     * @param {Object} $element The element to change
+     * @param {Object} token    Object with token inform
+     * @param {Object} editor   The editor Object to which fire the event
+     */
+    function setMatchedToken($element, token, editor) {
+        $element.addClass('completed');
+        $element.attr('rel', '{' + token.data.value + '}');
+        editor.fire('autoplaceholderTokenMatched', {
+            $element: $element,
+            tokenData: token.data
+        });
+    }
+
+    /**
+     * Remove attribute from element because is no more matchedwith tokens
+     * @param {Object} $element The element to change
+     */
+    function unsetMatchedToken($element) {
+        $element.removeClass('completed');
+        $element.removeAttr('rel');
     }
 
     /**
@@ -72,7 +98,7 @@
      * @param {Object} suggestions - an object containing all suggestions by key
      * @return {Void}
      */
-    function showSuggestions($element, suggestions) {
+    function showSuggestions($element, suggestions, editor) {
 
         // retrieve all the suggestion keys
         var keys = _.keys(suggestions);
@@ -86,20 +112,18 @@
             // check if suggestion final value is equal to the element text stop
             var matched;
              _.each(suggestions, function(suggestion) {
-                if($element.text() === suggestion.tokenKey) {
+                if(getInputText($element) === suggestion.tokenKey) {
                     matched = suggestion;
                 }
             });
 
             // if there is one match end the process
             if(matched) {
-                $element.addClass('completed');
-                $element.data('source', matched.tokenKey);
+                setMatchedToken($element, matched, editor);
                 return;
             }
         }
 
-        var tokenSuggestionClass = 'token-suggestions';
         var $suggestionBox = $element.find('.' + tokenSuggestionClass);
 
         // create box if doesn't exists
@@ -128,12 +152,10 @@
                     // if suggestion is not equal to the final token add a dot
                     if(suggestedText !== s.tokenKey) {
                         suggestedText += ".";
-                        $element.removeClass('completed');
-                        $element.removeData('source');
+                        unsetMatchedToken($element);
                     }
                     else {
-                        $element.addClass('completed');
-                        $element.data('source', s.tokenValue);
+                        setMatchedToken($element, s, editor);
                     }
 
                     $suggestionBox.remove();
@@ -144,7 +166,7 @@
 
                     // if suggestion in not equal to final token trigger a key down to show next suggestions
                     if(suggestedText !== s.tokenKey) {
-                        $element.trigger('keydown');
+                        $element.trigger('keyup');
                     }
                 }
             });
@@ -152,78 +174,31 @@
             $suggestionBox.append($suggestion);
         });
 
-        // bind keydown event on element
-        $element.on('keydown', function(e) {
-            var code = e.keyCode || e.which;
-            switch(code) {
-                case 13: // enter key
-                    selectActiveSuggestion();
-                    break;
-                case 38: // arrow up key
-                    if(e.shiftKey) {
-                        moveSuggestionForward();
-                    }
-                    else {
-                        moveSuggestionBackward();
-                    }
-                    break;
-                case 40: // arrow down key
-                case 9: // tab key
-                    if(e.shiftKey) {
-                        moveSuggestionBackward();
-                    }
-                    else {
-                        moveSuggestionForward();
-                    }
-                    break;
-                default: return; // exit this handler for other keys
-            }
-            e.preventDefault();
-            e.stopPropagation();
-        });
+    }
 
-        function moveSuggestionForward() {
-            var $active = $suggestionBox.find('.active');
-            // if there an active suggestion move to the next
-            if($active.length) {
-                $active.removeClass('active');
-                $active.next().addClass('active');
-                return;
-            }
-            $suggestionBox.children('.suggestion:first').addClass('active');
-        }
-
-        function moveSuggestionBackward() {
-            var $active = $suggestionBox.find('.active');
-            // if there an active suggestion move to the previous
-            if($active.length) {
-                $active.removeClass('active');
-                $active.prev().addClass('active');
-                return;
-            }
-            $suggestionBox.children('.suggestion:last').addClass('active');
-        }
-
-        function selectActiveSuggestion() {
-            var $active = $suggestionBox.find('.active');
-            // if there an active suggestion trigger the click event
-            if($active.length) {
-                $active.trigger('click');
-            }
-        }
-
+    /**
+     * Return an input text without altering the original selectElementContents
+     * @param  {Object} $element The input element from which retrieve the textarea
+     * @return {String}          The input text
+     */
+    function getInputText($element) {
+        var $input = $element.clone();
+        $input.find('.' + tokenSuggestionClass).remove();
+        return $input.text();
     }
 
     /**
      * Check if the input (a contenteditable element) has valid suggested tokens
-     *
-     * @param
+     * @param  {Object} $input    The input element from which take the textarea
+     * @param  {Object} tokenList A list of valid token
+     * @param  {Object} editor    The editor object
+     * @return {Void}
      */
-    function checkForValidTokens($input, tokenList) {
-        var inputValue = $input.text();
+    function checkForValidTokens($input, tokenList, editor) {
+        var inputValue = getInputText($input);
         var tokens = getValidTokens(inputValue, tokenList);
         if(inputValue === '') $input.html('&nbsp;');
-        showSuggestions($input, tokens);
+        showSuggestions($input, tokens, editor);
     }
 
     /**
@@ -255,6 +230,109 @@
 	    selection.removeAllRanges();
 	    selection.addRange(range);
 	}
+
+    function onKeyDown(e) {
+
+        var $target = $(e.target);
+        var $suggestionBox = $target.find('.' + tokenSuggestionClass);
+        var code = e.keyCode || e.which;
+        switch(code) {
+            case 13: // enter key
+                selectActiveSuggestion($suggestionBox);
+                break;
+            case 38: // arrow up key
+                moveSuggestionBackward($suggestionBox);
+                break;
+            case 40: // arrow down key
+            case 9: // tab key
+                if(e.shiftKey) {
+                    moveSuggestionBackward($suggestionBox);
+                }
+                else {
+                    moveSuggestionForward($suggestionBox);
+                }
+                break;
+            default: return; // exit this handler for other keys
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+
+    }
+
+    function onKeyUp(e) {
+
+        // ignore keypress used by suggestion list navigation
+        var code = e.keyCode || e.which;
+        switch(code) {
+            case 13: // enter
+            case 38: // arrow up
+            case 40: // arrow down
+            case 9: // tab
+            return;
+        }
+
+        var $this = $(this);
+        var inputValue = getInputText($this);
+        // if content is changed
+        if ($this.data('before') !== inputValue) {
+            // save new value
+            $this.data('before', inputValue);
+            unsetMatchedToken($this);
+            // if user insert almost two chars or an empty string check for suggestion and show
+            if(inputValue.length > 1 || inputValue === '') {
+                checkForValidTokens($this, tokenList, editor);
+            }
+        }
+
+        return $this;
+
+    }
+
+    /**
+     * Move the active suggestion list item to the next element
+     * @param  {Object} $suggestionBox The suggestion list element
+     * @return {Void}
+     */
+    function moveSuggestionForward($suggestionBox) {
+        var $active = $suggestionBox.find('.active');
+        // if there an active suggestion move to the next
+        if($active.length) {
+            $active.removeClass('active');
+            $active.next().addClass('active');
+            return;
+        }
+        $suggestionBox.children('.suggestion:first').addClass('active');
+    }
+
+    /**
+     * Move the active suggestion list item to the previous selectElementContents
+     * @param  {Object} $suggestionBox The suggestion list element
+     * @return {Void}
+     */
+    function moveSuggestionBackward($suggestionBox) {
+        var $active = $suggestionBox.find('.active');
+        // if there an active suggestion move to the previous
+        if($active.length) {
+            $active.removeClass('active');
+            $active.prev().addClass('active');
+            return;
+        }
+        $suggestionBox.children('.suggestion:last').addClass('active');
+    }
+
+    /**
+     * Select the activate suggestion list item
+     * @param  {Object} $suggestionBox The suggestion list selectElementContents
+     * @return {Void}
+     */
+    function selectActiveSuggestion($suggestionBox) {
+        var $active = $suggestionBox.find('.active');
+        // if there an active suggestion trigger the click event
+        if($active.length) {
+            $active.trigger('click');
+        }
+    }
 
     // register plugin
     CKEDITOR.plugins.add( 'autoplaceholder', {
@@ -292,57 +370,26 @@
                     return element.name === 'span' && element.hasClass( 'autoplaceholder' );
                 },
                 init: function() {
-                    this.on('ready', function(e) {
-
-                        var $autoplaceholderToken = $('.autoplaceholder-token');
-
-                        $autoplaceholderToken
+                    var widget = this;
+                    widget.on('ready', function(e) {
+                        // var $autoplaceholderToken = $('.autoplaceholder-token');
+                        $(e.sender.element.$).find('.autoplaceholder-token')
+                        // $autoplaceholderToken
                             .on('focus', function() {
                                 var $this = $(this);
                                 // select the widget text
                                 selectElementContents(this);
                                 // on focus save the current text in data
-                                $this.data('before', $this.text());
+                                $this.data('before', getInputText($this));
                                 return $this;
                             })
                             .on('blur', function() {
                                 var $this = $(this);
-                                $this.find('.token-suggestions').remove();
+                                $this.find('.' + tokenSuggestionClass).remove();
                                 return $this;
                             })
-                            .on('keydown paste', _.debounce(
-                                function(e) {
-                                    // ignore keypress used by suggestion list navigation
-                                    var code = e.keyCode || e.which;
-                                    switch(code) {
-                                        case 13: // enter
-                                        case 38: // arrow up
-                                        case 40: // arrow down
-                                        case 9: // tab
-                                        return;
-                                    }
-
-                                    var $this = $(this);
-
-                                    // remove old suggestion list
-                                    // $this.find('.token-suggestions').remove();
-
-                                    var inputValue = $this.text();
-                                    // if content is changed
-                                    if ($this.data('before') !== inputValue) {
-                                        // save new value
-                                        $this.data('before', inputValue);
-                                        $this.removeClass('completed');
-                                        // if user insert almost two chars or an empty string check for suggestion and show
-                                        if(inputValue.length > 1 || inputValue === '') {
-                                            checkForValidTokens($this, tokenList);
-                                        }
-                                    }
-
-                                    return $this;
-
-                                }, 800)
-                            );
+                            .on('keydown', onKeyDown)
+                            .on('keyup', onKeyUp);
 
                     });
                 }
