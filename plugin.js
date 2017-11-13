@@ -260,35 +260,6 @@
 
     }
 
-    function onKeyUp(e) {
-
-        // ignore keypress used by suggestion list navigation
-        var code = e.keyCode || e.which;
-        switch(code) {
-            case 13: // enter
-            case 38: // arrow up
-            case 40: // arrow down
-            case 9: // tab
-            return;
-        }
-
-        var $this = $(this);
-        var inputValue = getInputText($this);
-        // if content is changed
-        if ($this.data('before') !== inputValue) {
-            // save new value
-            $this.data('before', inputValue);
-            unsetMatchedToken($this);
-            // if user insert almost two chars or an empty string check for suggestion and show
-            if(inputValue.length > 1 || inputValue === '') {
-                checkForValidTokens($this, tokenList, editor);
-            }
-        }
-
-        return $this;
-
-    }
-
     /**
      * Move the active suggestion list item to the next element
      * @param  {Object} $suggestionBox The suggestion list element
@@ -372,7 +343,6 @@
                 init: function() {
                     var widget = this;
                     widget.on('ready', function(e) {
-                        // var $autoplaceholderToken = $('.autoplaceholder-token');
                         $(e.sender.element.$).find('.autoplaceholder-token')
                         // $autoplaceholderToken
                             .on('focus', function() {
@@ -389,7 +359,32 @@
                                 return $this;
                             })
                             .on('keydown', onKeyDown)
-                            .on('keyup', onKeyUp);
+                            .on('keyup', function(e) {
+                                // ignore keypress used by suggestion list navigation
+                                var code = e.keyCode || e.which;
+                                switch(code) {
+                                    case 13: // enter
+                                    case 38: // arrow up
+                                    case 40: // arrow down
+                                    case 9: // tab
+                                    return;
+                                }
+
+                                var $this = $(this);
+                                var inputValue = getInputText($this);
+                                // if content is changed
+                                if ($this.data('before') !== inputValue) {
+                                    // save new value
+                                    $this.data('before', inputValue);
+                                    unsetMatchedToken($this);
+                                    // if user insert almost two chars or an empty string check for suggestion and show
+                                    if(inputValue.length > 1 || inputValue === '') {
+                                        checkForValidTokens($this, tokenList, editor);
+                                    }
+                                }
+
+                                return $this;
+                            });
 
                     });
                 }
